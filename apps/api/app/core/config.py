@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     clerk_issuer: str = ""
     clerk_webhook_secret: str = ""
 
+    youtube_api_key: str = ""
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.api_cors_origins.split(",") if origin.strip()]

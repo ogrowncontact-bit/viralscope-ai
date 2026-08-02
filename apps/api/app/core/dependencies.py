@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.core.security.clerk import get_current_user_id
 from app.db.session import get_db_session
+from app.integrations.youtube_client import YouTubeClient
 from app.models.user import User
 from app.repositories.analysis_repository import SqlAlchemyAnalysisRepository
 from app.repositories.favorite_repository import SqlAlchemyFavoriteRepository
@@ -15,8 +16,10 @@ from app.repositories.interfaces.favorite_repository import FavoriteRepositoryPr
 from app.repositories.interfaces.health_repository import HealthRepositoryProtocol
 from app.repositories.interfaces.search_repository import SearchRepositoryProtocol
 from app.repositories.interfaces.user_repository import UserRepositoryProtocol
+from app.repositories.interfaces.video_repository import VideoRepositoryProtocol
 from app.repositories.search_repository import SqlAlchemySearchRepository
 from app.repositories.user_repository import SqlAlchemyUserRepository
+from app.repositories.video_repository import SqlAlchemyVideoRepository
 from app.services.dashboard_service import DashboardService
 from app.services.favorite_service import FavoriteService
 from app.services.health_service import HealthService
@@ -62,10 +65,20 @@ def get_search_repository(session: DbSessionDep) -> SearchRepositoryProtocol:
     return SqlAlchemySearchRepository(session)
 
 
+def get_video_repository(session: DbSessionDep) -> VideoRepositoryProtocol:
+    return SqlAlchemyVideoRepository(session)
+
+
+def get_youtube_client(settings: SettingsDep) -> YouTubeClient:
+    return YouTubeClient(api_key=settings.youtube_api_key)
+
+
 def get_search_service(
     repository: Annotated[SearchRepositoryProtocol, Depends(get_search_repository)],
+    video_repository: Annotated[VideoRepositoryProtocol, Depends(get_video_repository)],
+    youtube_client: Annotated[YouTubeClient, Depends(get_youtube_client)],
 ) -> SearchService:
-    return SearchService(repository)
+    return SearchService(repository, video_repository, youtube_client)
 
 
 def get_favorite_repository(session: DbSessionDep) -> FavoriteRepositoryProtocol:

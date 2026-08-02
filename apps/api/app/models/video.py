@@ -8,7 +8,7 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 
 class Video(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Catálogo de vídeos ingeridos do YouTube. Populado a partir do Módulo 4 (ingestão)."""
+    """Catálogo de vídeos ingeridos do YouTube. Populado a partir do Módulo 3 (ingestão)."""
 
     __tablename__ = "videos"
 
