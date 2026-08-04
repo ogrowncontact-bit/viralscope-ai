@@ -16,7 +16,7 @@ FastAPI em Clean Architecture: `api → services → repositories → models`.
 - `app/core/` — configuração (`config.py`), injeção de dependência (`dependencies.py`), logging,
   e `core/security/clerk.py` (verificação de JWT via JWKS).
 - `app/db/` — engine/sessão async e `Base` declarativa.
-- `app/workers/` — reservado para jobs assíncronos (fila Redis) a partir do Módulo 4.
+- `app/workers/` — worker de jobs assíncronos (fila Redis via `arq`), ver seção "Workers (Módulo 4)".
 
 Esse padrão é o gabarito para toda feature nova: crie `models/<entidade>.py` (herdando os mixins),
 `schemas/<feature>.py`, `repositories/interfaces/<feature>_repository.py` + implementação,
@@ -27,10 +27,11 @@ como referência.
 ## Domínio (Módulo 2)
 
 7 tabelas, todas com PK UUID e timestamps: `users`, `searches`, `videos`, `analyses`, `favorites`,
-`competitors`, `subscriptions`. `videos`/`analyses` são catálogo/IA — ficam vazias até os Módulos
-4/5 (ingestão do YouTube e análise por IA) existirem. Endpoints construídos cobrem só o que o
-dashboard consome hoje: `me`, `searches`, `favorites`, `dashboard/stats` — CRUD de
-`videos`/`analyses`/`competitors`/`subscriptions` chega junto das features que os usam.
+`competitors`, `subscriptions`. `analyses` é catálogo de IA — fica vazia até o Módulo 5 (análise por
+IA) existir. `videos` já é populada pela ingestão (Módulo 3) e, a partir do Módulo 4, também carrega
+os campos `transcript_*` (transcrição de áudio) e `metrics_synced_at`. Endpoints construídos cobrem
+só o que o dashboard consome hoje: `me`, `searches`, `favorites`, `dashboard/stats`, `videos/{id}/transcribe`
+— CRUD de `analyses`/`competitors`/`subscriptions` chega junto das features que os usam.
 
 ### Autenticação
 
@@ -42,6 +43,42 @@ banco — o registro completo (nome/e-mail/avatar) é sincronizado de verdade vi
 `api/v1/routers/webhooks/clerk.py`, assinado com Svix.
 
 Variáveis necessárias (`apps/api/.env`): `CLERK_JWKS_URL`, `CLERK_ISSUER`, `CLERK_WEBHOOK_SECRET`.
+
+## Workers (Módulo 4)
+
+Fila de jobs assíncronos sobre Redis usando [`arq`](https://arq-docs.helpmanual.io/) (async-nativo,
+combina com o resto do backend — SQLAlchemy asyncio, httpx, FastAPI). Definição em `app/workers/`:
+
+- `app/workers/worker.py` — `WorkerSettings` (funções registradas, cron jobs, `on_startup`/
+  `on_shutdown`). Roda com:
+  ```bash
+  poetry run arq app.workers.worker.WorkerSettings
+  ```
+  (também disponível como serviço `worker` no `docker-compose.yml`).
+- `app/workers/context.py` — `video_repository_scope()`: jobs arq não têm `Depends` do FastAPI, então
+  esse `@asynccontextmanager` abre uma `AsyncSession` (reusando a mesma `AsyncSessionFactory` de
+  `app/db/session.py`) e devolve o repositório já construído.
+- `app/workers/tasks/transcription.py` — `transcribe_video_job`: transcreve o áudio de um vídeo via
+  `TranscriptionService` + `TranscriptionClientProtocol` (`app/integrations/interfaces/`). A
+  implementação real, `WhisperTranscriptionClient`
+  (`app/integrations/whisper_transcription_client.py`), baixa o áudio com `yt-dlp` e chama o endpoint
+  REST `/v1/audio/transcriptions` (Whisper) da OpenAI via `httpx` — sem SDK, mesmo estilo de
+  `youtube_client.py`. Precisa de `OPENAI_API_KEY`; sem ela, o job falha e marca
+  `transcript_status = failed` com o erro em `transcript_error`.
+  - **Disparo**: automático (fire-and-forget) a partir de `SearchService.create_search` para todo
+    vídeo com `transcript_status = pending` recém-upsertado; ou manual via
+    `POST /api/v1/videos/{id}/transcribe` (também serve para reprocessar um vídeo `failed`).
+  - **Risco conhecido**: `yt-dlp` pode ser bloqueado por proteções anti-bot do YouTube a partir de
+    IPs de datacenter/cloud em produção. Isso fica isolado atrás de `TranscriptionClientProtocol` —
+    trocar a implementação não exige tocar em `TranscriptionService`, no job ou na tabela `videos`.
+- `app/workers/tasks/metrics.py` — `sync_video_metrics_job`: cron (de hora em hora, ver
+  `WorkerSettings.cron_jobs`) que reconsulta a YouTube Data API (`YouTubeClient.fetch_videos_by_id`,
+  em lotes de até 50 ids) para atualizar `view_count`/`like_count`/`comment_count` dos vídeos
+  favoritados por pelo menos um usuário — hoje o único conceito de "vídeo acompanhado" no domínio.
+
+`ArqJobQueue` (`app/integrations/job_queue.py`) encapsula o pool de conexão com o Redis (lazy,
+criado na primeira chamada) e usa um `_job_id` determinístico por vídeo (`transcribe-video-{id}`)
+para aproveitar a dedupe nativa do arq e evitar enfileirar o mesmo vídeo duas vezes.
 
 ## Rodando localmente
 
@@ -59,9 +96,9 @@ poetry run alembic upgrade head
 poetry run alembic revision --autogenerate -m "descrição"   # para novas mudanças de schema
 ```
 
-A migration `0001_create_domain_tables` foi escrita à mão (não havia conexão de banco disponível
-no momento da criação para autogenerate) e já foi validada rodando de verdade contra um Postgres
-real. A partir dela, use `--autogenerate` normalmente.
+As migrations `0001_create_domain_tables` e `0002_add_video_transcript_fields` foram escritas à
+mão e já foram validadas rodando de verdade contra um Postgres real (upgrade e downgrade). A partir
+delas, use `--autogenerate` normalmente.
 
 ## Testes
 
@@ -71,5 +108,10 @@ poetry run pytest
 
 `tests/test_clerk_security.py` gera um par de chaves RSA no próprio teste para validar a
 verificação de JWT sem depender de credenciais reais do Clerk. Os testes de routers
-(`test_searches.py`, `test_favorites.py`, `test_dashboard.py`) usam `app.dependency_overrides`
-para trocar repositórios por mocks — não tocam banco de verdade.
+(`test_searches.py`, `test_favorites.py`, `test_dashboard.py`, `test_videos.py`) usam
+`app.dependency_overrides` para trocar repositórios/integrações por mocks — não tocam banco nem
+Redis de verdade. Os jobs do worker (`test_worker_jobs.py`) são chamados diretamente com um `ctx`
+fake e `video_repository_scope` trocado via `monkeypatch` (jobs arq não passam por
+`app.dependency_overrides`, que é específico do FastAPI). `test_whisper_transcription_client.py`
+mocka `yt_dlp` e usa `respx` para a chamada à API Whisper, sem baixar áudio nem chamar a OpenAI de
+verdade.

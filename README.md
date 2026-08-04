@@ -4,11 +4,12 @@ Plataforma SaaS que usa IA para identificar vídeos e canais do YouTube com alto
 viralização — tendências emergentes, por que um vídeo viralizou, títulos e hooks vencedores, e
 oportunidades de conteúdo para Shorts.
 
-> Status: **Módulo 3 — Ingestão de dados (YouTube Data API).** Módulos 1–2 concluídos (estrutura
-> inicial, auth, banco, dashboard). Buscar agora consulta a YouTube Data API, persiste os vídeos
-> retornados em `videos` e exibe os resultados no dashboard — com cache em memória (15 min) para
-> proteger a quota da API em buscas repetidas. A _análise por IA_ (viral score, insights, hooks)
-> ainda não existe — chega no Módulo 5.
+> Status: **Módulo 4 — Workers assíncronos (Redis via `arq`).** Módulos 1–3 concluídos (estrutura
+> inicial, auth, banco, dashboard, ingestão via YouTube Data API). Toda busca agora dispara,
+> automaticamente e em segundo plano, a transcrição do áudio dos vídeos novos (Whisper), e um cron
+> horário mantém as métricas dos vídeos favoritados atualizadas. A _análise por IA_ (viral score,
+> insights, hooks) ainda não existe — chega no Módulo 5, e vai consumir a transcrição já produzida
+> aqui.
 
 ## Stack
 
@@ -17,10 +18,10 @@ oportunidades de conteúdo para Shorts.
 | Frontend     | Next.js 15 (App Router), TypeScript, TailwindCSS, shadcn/ui, TanStack Query, React Hook Form, Zod |
 | Backend      | FastAPI, Python, SQLAlchemy, Alembic                                                              |
 | Banco        | Supabase PostgreSQL (real, já em uso — ver `apps/api/.env`)                                       |
-| Cache / Fila | Redis _(Módulo 4)_                                                                                |
+| Cache / Fila | Redis + [`arq`](https://arq-docs.helpmanual.io/) (fila de jobs assíncronos, Módulo 4)             |
 | Autenticação | Clerk                                                                                             |
 | Pagamento    | Stripe _(Módulo 6)_                                                                               |
-| IA           | Claude API, OpenAI API, Whisper _(Módulo 5)_                                                      |
+| IA           | Whisper (transcrição, Módulo 4) · Claude API, OpenAI API _(análise, Módulo 5)_                    |
 | Deploy       | Vercel (web) · Railway (api) · Supabase (banco)                                                   |
 
 ## Arquitetura
@@ -71,10 +72,17 @@ cd apps/api
 poetry install
 poetry run alembic upgrade head   # cria as 7 tabelas no seu Postgres
 poetry run uvicorn app.main:app --reload
+
+# 2c. Worker (terceiro terminal) — transcrição (Whisper) + coleta de métricas
+cd apps/api
+poetry run arq app.workers.worker.WorkerSettings
 ```
 
 - Frontend: http://localhost:3000 · dashboard em `/dashboard` (exige login)
 - Backend: http://localhost:8000/docs (Swagger) · http://localhost:8000/api/v1/health
+- Worker: precisa do Redis rodando (`docker-compose.yml` já sobe um). Sem `OPENAI_API_KEY`
+  configurada, o job de transcrição roda mas falha (`transcript_status = failed`) — a busca em si
+  não é afetada.
 
 `docker-compose.yml` continua disponível para quem preferir Postgres/Redis locais em vez do
 Supabase direto — nesse caso aponte `DATABASE_URL` para o container (`localhost:5432`) em vez da
@@ -84,9 +92,9 @@ connection string do Supabase.
 
 - **Lint/format**: ESLint + Prettier (TS/JS) e Ruff (Python), unificados num único hook de
   pre-commit via Husky + lint-staged — configurado na raiz (`package.json`).
-- **Testes**: Pytest (`apps/api/tests`, 22 testes — Clerk JWT com par RSA gerado no teste, routers
-  com repositórios mockados, cliente YouTube mockado via `respx`). Vitest no frontend chega num
-  módulo futuro.
+- **Testes**: Pytest (`apps/api/tests`, 50 testes — Clerk JWT com par RSA gerado no teste, routers
+  com repositórios mockados, clientes YouTube/Whisper mockados via `respx`, jobs do worker chamados
+  diretamente com repositório fake). Vitest no frontend chega num módulo futuro.
 - **Tipagem**: `strict` no TypeScript, proibido `any` (regra de ESLint `@typescript-eslint/no-explicit-any`).
 
 ```bash
@@ -99,8 +107,9 @@ Cada módulo abaixo é implementado e aprovado separadamente:
 
 1. ✅ Estrutura inicial
 2. ✅ Dashboard, Auth (Clerk) e domínio de dados
-3. ✅ Ingestão de dados — YouTube Data API, popula `videos` (este módulo)
-4. Workers assíncronos (Redis) — transcrição Whisper, coleta de métricas
+3. ✅ Ingestão de dados — YouTube Data API, popula `videos`
+4. ✅ Workers assíncronos (Redis via `arq`) — transcrição Whisper, coleta periódica de métricas
+   (este módulo)
 5. Camada de IA (Claude / OpenAI) — `analyses`: viral score, insights, títulos, hooks
 6. Billing (Stripe) — liga a tabela `subscriptions` a um fluxo de pagamento real
 7. CI/CD (GitHub Actions)

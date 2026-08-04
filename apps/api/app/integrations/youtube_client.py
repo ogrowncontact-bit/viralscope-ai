@@ -57,6 +57,14 @@ class YouTubeClient:
                 return []
             return await self._fetch_video_details(client, video_ids)
 
+    async def fetch_videos_by_id(self, video_ids: list[str]) -> list[YouTubeVideoData]:
+        """Busca metadados/estatísticas atuais para uma lista de ids (até 50, limite da API)."""
+        if not self._api_key:
+            raise YouTubeAPIError("YOUTUBE_API_KEY não configurada.")
+
+        async with httpx.AsyncClient(base_url=self._base_url, timeout=10.0) as client:
+            return await self._fetch_video_details(client, video_ids)
+
     async def _search_video_ids(
         self, client: httpx.AsyncClient, query: str, max_results: int
     ) -> list[str]:

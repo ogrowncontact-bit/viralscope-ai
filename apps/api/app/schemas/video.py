@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.models.enums import TranscriptStatus
+
 
 class VideoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -17,3 +19,4 @@ class VideoOut(BaseModel):
     comment_count: int
     duration_seconds: int | None
     published_at: datetime | None
+    transcript_status: TranscriptStatus

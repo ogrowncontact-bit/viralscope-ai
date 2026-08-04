@@ -21,7 +21,12 @@ class Analysis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     status: Mapped[AnalysisStatus] = mapped_column(
-        Enum(AnalysisStatus, name="analysis_status"), default=AnalysisStatus.PENDING
+        Enum(
+            AnalysisStatus,
+            name="analysis_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        default=AnalysisStatus.PENDING,
     )
     viral_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)

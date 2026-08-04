@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     clerk_webhook_secret: str = ""
 
     youtube_api_key: str = ""
+    openai_api_key: str = ""
 
     @property
     def cors_origins(self) -> list[str]:
