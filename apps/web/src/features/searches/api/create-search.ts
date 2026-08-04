@@ -1,9 +1,9 @@
-import { apiFetch } from "@/lib/api-client";
-import type { Search } from "@/features/searches/types";
+import { apiFetch } from '@/lib/api-client';
+import type { SearchResult } from '@/features/searches/types';
 
-export function createSearch(token: string | null, query: string): Promise<Search> {
-  return apiFetch<Search>("/api/v1/searches", {
-    method: "POST",
+export function createSearch(token: string | null, query: string): Promise<SearchResult> {
+  return apiFetch<SearchResult>('/api/v1/searches', {
+    method: 'POST',
     body: JSON.stringify({ query }),
     token,
   });

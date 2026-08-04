@@ -1,6 +1,7 @@
 import uuid
 
-from app.integrations.youtube_client import YouTubeClient
+from app.core.cache import TTLCache
+from app.integrations.youtube_client import YouTubeClient, YouTubeVideoData
 from app.models.search import Search
 from app.models.video import Video
 from app.repositories.interfaces.search_repository import SearchRepositoryProtocol
@@ -13,15 +14,22 @@ class SearchService:
         repository: SearchRepositoryProtocol,
         video_repository: VideoRepositoryProtocol,
         youtube_client: YouTubeClient,
+        search_cache: TTLCache[list[YouTubeVideoData]],
     ) -> None:
         self._repository = repository
         self._video_repository = video_repository
         self._youtube_client = youtube_client
+        self._search_cache = search_cache
 
     async def create_search(self, user_id: uuid.UUID, query: str) -> tuple[Search, list[Video]]:
         search = await self._repository.create(user_id, query.strip())
 
-        results = await self._youtube_client.search_videos(search.query)
+        cache_key = search.query.lower()
+        results = self._search_cache.get(cache_key)
+        if results is None:
+            results = await self._youtube_client.search_videos(search.query)
+            self._search_cache.set(cache_key, results)
+
         videos = [await self._video_repository.upsert(result) for result in results]
 
         return search, videos

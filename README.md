@@ -4,10 +4,11 @@ Plataforma SaaS que usa IA para identificar vídeos e canais do YouTube com alto
 viralização — tendências emergentes, por que um vídeo viralizou, títulos e hooks vencedores, e
 oportunidades de conteúdo para Shorts.
 
-> Status: **Módulo 2 — Dashboard, Auth (Clerk) e domínio de dados.** Estrutura inicial (Módulo 1)
-> concluída; agora há autenticação, banco com 7 tabelas migradas no Supabase, e um dashboard
-> funcional (busca, pesquisas recentes, favoritos, estatísticas). A _descoberta de vídeos por IA_
-> em si (ingestão do YouTube, análise) ainda não existe — chega nos Módulos 3–5.
+> Status: **Módulo 3 — Ingestão de dados (YouTube Data API).** Módulos 1–2 concluídos (estrutura
+> inicial, auth, banco, dashboard). Buscar agora consulta a YouTube Data API, persiste os vídeos
+> retornados em `videos` e exibe os resultados no dashboard — com cache em memória (15 min) para
+> proteger a quota da API em buscas repetidas. A _análise por IA_ (viral score, insights, hooks)
+> ainda não existe — chega no Módulo 5.
 
 ## Stack
 
@@ -50,8 +51,10 @@ viralscope-ai/
 ## Como rodar localmente
 
 Pré-requisitos: Node.js ≥ 20, [pnpm](https://pnpm.io) (via `corepack enable`), Python ≥ 3.12,
-[Poetry](https://python-poetry.org), uma conta [Supabase](https://supabase.com) e uma conta
-[Clerk](https://dashboard.clerk.com) (gratuitas).
+[Poetry](https://python-poetry.org), uma conta [Supabase](https://supabase.com), uma conta
+[Clerk](https://dashboard.clerk.com) (gratuitas) e uma chave da
+[YouTube Data API](https://console.cloud.google.com/apis/library/youtube.googleapis.com) (para a
+busca retornar vídeos — sem ela, a busca é salva mas retorna erro 502 ao consultar o YouTube).
 
 ```bash
 # 1. Variáveis de ambiente
@@ -81,8 +84,9 @@ connection string do Supabase.
 
 - **Lint/format**: ESLint + Prettier (TS/JS) e Ruff (Python), unificados num único hook de
   pre-commit via Husky + lint-staged — configurado na raiz (`package.json`).
-- **Testes**: Pytest (`apps/api/tests`, 15 testes — Clerk JWT com par RSA gerado no teste, routers
-  com repositórios mockados). Vitest no frontend chega num módulo futuro.
+- **Testes**: Pytest (`apps/api/tests`, 22 testes — Clerk JWT com par RSA gerado no teste, routers
+  com repositórios mockados, cliente YouTube mockado via `respx`). Vitest no frontend chega num
+  módulo futuro.
 - **Tipagem**: `strict` no TypeScript, proibido `any` (regra de ESLint `@typescript-eslint/no-explicit-any`).
 
 ```bash
@@ -94,8 +98,8 @@ pnpm install && pnpm prepare   # instala husky (uma vez, após clonar)
 Cada módulo abaixo é implementado e aprovado separadamente:
 
 1. ✅ Estrutura inicial
-2. ✅ Dashboard, Auth (Clerk) e domínio de dados (este módulo)
-3. Ingestão de dados — YouTube Data API, popula `videos`
+2. ✅ Dashboard, Auth (Clerk) e domínio de dados
+3. ✅ Ingestão de dados — YouTube Data API, popula `videos` (este módulo)
 4. Workers assíncronos (Redis) — transcrição Whisper, coleta de métricas
 5. Camada de IA (Claude / OpenAI) — `analyses`: viral score, insights, títulos, hooks
 6. Billing (Stripe) — liga a tabela `subscriptions` a um fluxo de pagamento real

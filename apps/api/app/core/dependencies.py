@@ -1,12 +1,14 @@
+from functools import lru_cache
 from typing import Annotated
 
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import TTLCache
 from app.core.config import Settings, get_settings
 from app.core.security.clerk import get_current_user_id
 from app.db.session import get_db_session
-from app.integrations.youtube_client import YouTubeClient
+from app.integrations.youtube_client import YouTubeClient, YouTubeVideoData
 from app.models.user import User
 from app.repositories.analysis_repository import SqlAlchemyAnalysisRepository
 from app.repositories.favorite_repository import SqlAlchemyFavoriteRepository
@@ -73,12 +75,21 @@ def get_youtube_client(settings: SettingsDep) -> YouTubeClient:
     return YouTubeClient(api_key=settings.youtube_api_key)
 
 
+YOUTUBE_SEARCH_CACHE_TTL_SECONDS = 15 * 60
+
+
+@lru_cache
+def get_youtube_search_cache() -> TTLCache[list[YouTubeVideoData]]:
+    return TTLCache(ttl_seconds=YOUTUBE_SEARCH_CACHE_TTL_SECONDS)
+
+
 def get_search_service(
     repository: Annotated[SearchRepositoryProtocol, Depends(get_search_repository)],
     video_repository: Annotated[VideoRepositoryProtocol, Depends(get_video_repository)],
     youtube_client: Annotated[YouTubeClient, Depends(get_youtube_client)],
+    search_cache: Annotated[TTLCache[list[YouTubeVideoData]], Depends(get_youtube_search_cache)],
 ) -> SearchService:
-    return SearchService(repository, video_repository, youtube_client)
+    return SearchService(repository, video_repository, youtube_client, search_cache)
 
 
 def get_favorite_repository(session: DbSessionDep) -> FavoriteRepositoryProtocol:
