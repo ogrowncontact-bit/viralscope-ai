@@ -91,3 +91,59 @@ async def test_search_videos_returns_empty_list_when_no_results() -> None:
     videos = await client.search_videos("query sem resultados")
 
     assert videos == []
+
+
+async def test_fetch_videos_by_id_raises_without_api_key() -> None:
+    client = YouTubeClient(api_key="")
+
+    with pytest.raises(YouTubeAPIError):
+        await client.fetch_videos_by_id(["abc123"])
+
+
+@respx.mock
+async def test_fetch_videos_by_id_returns_parsed_videos() -> None:
+    respx.get(f"{YOUTUBE_API_BASE_URL}/videos").mock(
+        return_value=Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "id": "abc123",
+                        "snippet": {
+                            "channelId": "channel-1",
+                            "channelTitle": "Canal Teste",
+                            "title": "Vídeo de teste",
+                            "description": "Descrição",
+                            "publishedAt": "2026-01-01T00:00:00Z",
+                            "thumbnails": {"high": {"url": "https://example.com/thumb.jpg"}},
+                        },
+                        "statistics": {
+                            "viewCount": "2000",
+                            "likeCount": "200",
+                            "commentCount": "20",
+                        },
+                        "contentDetails": {"duration": "PT4M13S"},
+                    }
+                ]
+            },
+        )
+    )
+
+    client = YouTubeClient(api_key="fake-key")
+    videos = await client.fetch_videos_by_id(["abc123"])
+
+    assert len(videos) == 1
+    assert videos[0].youtube_video_id == "abc123"
+    assert videos[0].view_count == 2000
+
+
+@respx.mock
+async def test_fetch_videos_by_id_raises_on_http_error() -> None:
+    respx.get(f"{YOUTUBE_API_BASE_URL}/videos").mock(
+        return_value=Response(403, text="quota exceeded")
+    )
+
+    client = YouTubeClient(api_key="fake-key")
+
+    with pytest.raises(YouTubeAPIError):
+        await client.fetch_videos_by_id(["abc123"])

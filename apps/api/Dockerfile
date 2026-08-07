@@ -7,6 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# ffmpeg é necessário pelo yt-dlp para extrair o áudio usado na transcrição (Módulo 4).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir poetry==1.8.5
 
 COPY pyproject.toml poetry.lock* ./

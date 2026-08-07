@@ -7,13 +7,16 @@ from httpx import AsyncClient
 from app.core.cache import TTLCache
 from app.core.dependencies import (
     get_current_user,
+    get_job_queue,
     get_search_repository,
     get_video_repository,
     get_youtube_client,
     get_youtube_search_cache,
 )
+from app.integrations.job_queue import JobQueueError
 from app.integrations.youtube_client import YouTubeVideoData
 from app.main import app
+from app.models.enums import TranscriptStatus
 from app.models.search import Search
 from app.models.user import User
 from app.models.video import Video
@@ -56,6 +59,7 @@ async def test_list_recent_searches_returns_serialized_list(client: AsyncClient)
 
 
 async def test_create_search_persists_and_returns_it(client: AsyncClient) -> None:
+    video_id = uuid.uuid4()
     fake_repository = AsyncMock()
     fake_repository.create.return_value = Search(
         id=uuid.uuid4(),
@@ -65,7 +69,7 @@ async def test_create_search_persists_and_returns_it(client: AsyncClient) -> Non
     )
     fake_video_repository = AsyncMock()
     fake_video_repository.upsert.return_value = Video(
-        id=uuid.uuid4(),
+        id=video_id,
         youtube_video_id="abc123",
         youtube_channel_id="channel-1",
         channel_title="Canal Teste",
@@ -77,6 +81,7 @@ async def test_create_search_persists_and_returns_it(client: AsyncClient) -> Non
         comment_count=0,
         duration_seconds=None,
         published_at=None,
+        transcript_status=TranscriptStatus.PENDING,
     )
     fake_youtube_client = AsyncMock()
     fake_youtube_client.search_videos.return_value = [
@@ -94,11 +99,13 @@ async def test_create_search_persists_and_returns_it(client: AsyncClient) -> Non
             published_at=None,
         )
     ]
+    fake_job_queue = AsyncMock()
     app.dependency_overrides[get_current_user] = _override_current_user
     app.dependency_overrides[get_search_repository] = lambda: fake_repository
     app.dependency_overrides[get_video_repository] = lambda: fake_video_repository
     app.dependency_overrides[get_youtube_client] = lambda: fake_youtube_client
     app.dependency_overrides[get_youtube_search_cache] = lambda: TTLCache(ttl_seconds=900)
+    app.dependency_overrides[get_job_queue] = lambda: fake_job_queue
 
     response = await client.post("/api/v1/searches", json={"query": "canais crescendo rápido"})
 
@@ -108,6 +115,113 @@ async def test_create_search_persists_and_returns_it(client: AsyncClient) -> Non
     assert body["videos"][0]["youtube_video_id"] == "abc123"
     fake_repository.create.assert_awaited_once_with(FAKE_USER.id, "canais crescendo rápido")
     fake_youtube_client.search_videos.assert_awaited_once_with("canais crescendo rápido")
+    fake_job_queue.enqueue_transcription.assert_awaited_once_with(video_id)
+
+    app.dependency_overrides.clear()
+
+
+async def test_create_search_does_not_enqueue_already_transcribed_videos(
+    client: AsyncClient,
+) -> None:
+    fake_repository = AsyncMock()
+    fake_repository.create.return_value = Search(
+        id=uuid.uuid4(),
+        user_id=FAKE_USER.id,
+        query="canais crescendo rápido",
+        created_at=datetime.now(UTC),
+    )
+    fake_video_repository = AsyncMock()
+    fake_video_repository.upsert.return_value = Video(
+        id=uuid.uuid4(),
+        youtube_video_id="abc123",
+        youtube_channel_id="channel-1",
+        channel_title="Canal Teste",
+        title="Vídeo de teste",
+        view_count=0,
+        like_count=0,
+        comment_count=0,
+        transcript_status=TranscriptStatus.COMPLETED,
+    )
+    fake_youtube_client = AsyncMock()
+    fake_youtube_client.search_videos.return_value = [
+        YouTubeVideoData(
+            youtube_video_id="abc123",
+            youtube_channel_id="channel-1",
+            channel_title="Canal Teste",
+            title="Vídeo de teste",
+            description=None,
+            thumbnail_url=None,
+            view_count=0,
+            like_count=0,
+            comment_count=0,
+            duration_seconds=None,
+            published_at=None,
+        )
+    ]
+    fake_job_queue = AsyncMock()
+    app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_search_repository] = lambda: fake_repository
+    app.dependency_overrides[get_video_repository] = lambda: fake_video_repository
+    app.dependency_overrides[get_youtube_client] = lambda: fake_youtube_client
+    app.dependency_overrides[get_youtube_search_cache] = lambda: TTLCache(ttl_seconds=900)
+    app.dependency_overrides[get_job_queue] = lambda: fake_job_queue
+
+    response = await client.post("/api/v1/searches", json={"query": "canais crescendo rápido"})
+
+    assert response.status_code == 201
+    fake_job_queue.enqueue_transcription.assert_not_awaited()
+
+    app.dependency_overrides.clear()
+
+
+async def test_create_search_succeeds_even_when_job_queue_fails(client: AsyncClient) -> None:
+    fake_repository = AsyncMock()
+    fake_repository.create.return_value = Search(
+        id=uuid.uuid4(),
+        user_id=FAKE_USER.id,
+        query="canais crescendo rápido",
+        created_at=datetime.now(UTC),
+    )
+    fake_video_repository = AsyncMock()
+    fake_video_repository.upsert.return_value = Video(
+        id=uuid.uuid4(),
+        youtube_video_id="abc123",
+        youtube_channel_id="channel-1",
+        channel_title="Canal Teste",
+        title="Vídeo de teste",
+        view_count=0,
+        like_count=0,
+        comment_count=0,
+        transcript_status=TranscriptStatus.PENDING,
+    )
+    fake_youtube_client = AsyncMock()
+    fake_youtube_client.search_videos.return_value = [
+        YouTubeVideoData(
+            youtube_video_id="abc123",
+            youtube_channel_id="channel-1",
+            channel_title="Canal Teste",
+            title="Vídeo de teste",
+            description=None,
+            thumbnail_url=None,
+            view_count=0,
+            like_count=0,
+            comment_count=0,
+            duration_seconds=None,
+            published_at=None,
+        )
+    ]
+    fake_job_queue = AsyncMock()
+    fake_job_queue.enqueue_transcription.side_effect = JobQueueError("redis indisponível")
+    app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_search_repository] = lambda: fake_repository
+    app.dependency_overrides[get_video_repository] = lambda: fake_video_repository
+    app.dependency_overrides[get_youtube_client] = lambda: fake_youtube_client
+    app.dependency_overrides[get_youtube_search_cache] = lambda: TTLCache(ttl_seconds=900)
+    app.dependency_overrides[get_job_queue] = lambda: fake_job_queue
+
+    response = await client.post("/api/v1/searches", json={"query": "canais crescendo rápido"})
+
+    assert response.status_code == 201
 
     app.dependency_overrides.clear()
 
@@ -131,6 +245,7 @@ async def test_create_search_reuses_cached_youtube_results(client: AsyncClient) 
         comment_count=0,
         duration_seconds=None,
         published_at=None,
+        transcript_status=TranscriptStatus.PENDING,
     )
     fake_youtube_client = AsyncMock()
     fake_youtube_client.search_videos.return_value = [
@@ -154,6 +269,7 @@ async def test_create_search_reuses_cached_youtube_results(client: AsyncClient) 
     app.dependency_overrides[get_video_repository] = lambda: fake_video_repository
     app.dependency_overrides[get_youtube_client] = lambda: fake_youtube_client
     app.dependency_overrides[get_youtube_search_cache] = lambda: shared_cache
+    app.dependency_overrides[get_job_queue] = lambda: AsyncMock()
 
     first = await client.post("/api/v1/searches", json={"query": "canais crescendo rápido"})
     second = await client.post("/api/v1/searches", json={"query": "Canais Crescendo Rápido"})

@@ -8,6 +8,13 @@ class AnalysisStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class TranscriptStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class SubscriptionPlan(str, enum.Enum):
     FREE = "free"
     PRO = "pro"

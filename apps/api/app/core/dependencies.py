@@ -8,6 +8,9 @@ from app.core.cache import TTLCache
 from app.core.config import Settings, get_settings
 from app.core.security.clerk import get_current_user_id
 from app.db.session import get_db_session
+from app.integrations.interfaces.transcription_client import TranscriptionClientProtocol
+from app.integrations.job_queue import ArqJobQueue
+from app.integrations.whisper_transcription_client import WhisperTranscriptionClient
 from app.integrations.youtube_client import YouTubeClient, YouTubeVideoData
 from app.models.user import User
 from app.repositories.analysis_repository import SqlAlchemyAnalysisRepository
@@ -27,6 +30,7 @@ from app.services.favorite_service import FavoriteService
 from app.services.health_service import HealthService
 from app.services.search_service import SearchService
 from app.services.user_service import UserService
+from app.services.video_service import VideoService
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 DbSessionDep = Annotated[AsyncSession, Depends(get_db_session)]
@@ -83,13 +87,34 @@ def get_youtube_search_cache() -> TTLCache[list[YouTubeVideoData]]:
     return TTLCache(ttl_seconds=YOUTUBE_SEARCH_CACHE_TTL_SECONDS)
 
 
+@lru_cache
+def _job_queue_singleton(redis_url: str) -> ArqJobQueue:
+    return ArqJobQueue(redis_url=redis_url)
+
+
+def get_job_queue(settings: SettingsDep) -> ArqJobQueue:
+    return _job_queue_singleton(settings.redis_url)
+
+
+def get_transcription_client(settings: SettingsDep) -> TranscriptionClientProtocol:
+    return WhisperTranscriptionClient(api_key=settings.openai_api_key)
+
+
 def get_search_service(
     repository: Annotated[SearchRepositoryProtocol, Depends(get_search_repository)],
     video_repository: Annotated[VideoRepositoryProtocol, Depends(get_video_repository)],
     youtube_client: Annotated[YouTubeClient, Depends(get_youtube_client)],
     search_cache: Annotated[TTLCache[list[YouTubeVideoData]], Depends(get_youtube_search_cache)],
+    job_queue: Annotated[ArqJobQueue, Depends(get_job_queue)],
 ) -> SearchService:
-    return SearchService(repository, video_repository, youtube_client, search_cache)
+    return SearchService(repository, video_repository, youtube_client, search_cache, job_queue)
+
+
+def get_video_service(
+    video_repository: Annotated[VideoRepositoryProtocol, Depends(get_video_repository)],
+    job_queue: Annotated[ArqJobQueue, Depends(get_job_queue)],
+) -> VideoService:
+    return VideoService(video_repository, job_queue)
 
 
 def get_favorite_repository(session: DbSessionDep) -> FavoriteRepositoryProtocol:

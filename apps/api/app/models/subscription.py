@@ -21,10 +21,20 @@ class Subscription(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     plan: Mapped[SubscriptionPlan] = mapped_column(
-        Enum(SubscriptionPlan, name="subscription_plan"), default=SubscriptionPlan.FREE
+        Enum(
+            SubscriptionPlan,
+            name="subscription_plan",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        default=SubscriptionPlan.FREE,
     )
     status: Mapped[SubscriptionStatus] = mapped_column(
-        Enum(SubscriptionStatus, name="subscription_status"), default=SubscriptionStatus.ACTIVE
+        Enum(
+            SubscriptionStatus,
+            name="subscription_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        default=SubscriptionStatus.ACTIVE,
     )
     current_period_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
