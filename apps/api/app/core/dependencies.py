@@ -8,6 +8,8 @@ from app.core.cache import TTLCache
 from app.core.config import Settings, get_settings
 from app.core.security.clerk import get_current_user_id
 from app.db.session import get_db_session
+from app.integrations.claude_analysis_client import ClaudeAnalysisClient
+from app.integrations.interfaces.analysis_client import AnalysisClientProtocol
 from app.integrations.interfaces.transcription_client import TranscriptionClientProtocol
 from app.integrations.job_queue import ArqJobQueue
 from app.integrations.whisper_transcription_client import WhisperTranscriptionClient
@@ -25,6 +27,7 @@ from app.repositories.interfaces.video_repository import VideoRepositoryProtocol
 from app.repositories.search_repository import SqlAlchemySearchRepository
 from app.repositories.user_repository import SqlAlchemyUserRepository
 from app.repositories.video_repository import SqlAlchemyVideoRepository
+from app.services.analysis_service import AnalysisService
 from app.services.dashboard_service import DashboardService
 from app.services.favorite_service import FavoriteService
 from app.services.health_service import HealthService
@@ -137,3 +140,16 @@ def get_dashboard_service(
     analysis_repository: Annotated[AnalysisRepositoryProtocol, Depends(get_analysis_repository)],
 ) -> DashboardService:
     return DashboardService(search_repository, favorite_repository, analysis_repository)
+
+
+def get_analysis_client(settings: SettingsDep) -> AnalysisClientProtocol:
+    return ClaudeAnalysisClient(api_key=settings.anthropic_api_key)
+
+
+def get_analysis_service(
+    analysis_repository: Annotated[AnalysisRepositoryProtocol, Depends(get_analysis_repository)],
+    video_repository: Annotated[VideoRepositoryProtocol, Depends(get_video_repository)],
+    analysis_client: Annotated[AnalysisClientProtocol, Depends(get_analysis_client)],
+    job_queue: Annotated[ArqJobQueue, Depends(get_job_queue)],
+) -> AnalysisService:
+    return AnalysisService(analysis_repository, video_repository, analysis_client, job_queue)

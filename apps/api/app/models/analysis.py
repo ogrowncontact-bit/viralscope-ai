@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, Numeric, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, Numeric, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +32,8 @@ class Analysis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     viral_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     insights: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     video: Mapped["Video"] = relationship(back_populates="analyses")  # noqa: F821
     user: Mapped["User | None"] = relationship()  # noqa: F821

@@ -27,11 +27,12 @@ como referência.
 ## Domínio (Módulo 2)
 
 7 tabelas, todas com PK UUID e timestamps: `users`, `searches`, `videos`, `analyses`, `favorites`,
-`competitors`, `subscriptions`. `analyses` é catálogo de IA — fica vazia até o Módulo 5 (análise por
-IA) existir. `videos` já é populada pela ingestão (Módulo 3) e, a partir do Módulo 4, também carrega
-os campos `transcript_*` (transcrição de áudio) e `metrics_synced_at`. Endpoints construídos cobrem
-só o que o dashboard consome hoje: `me`, `searches`, `favorites`, `dashboard/stats`, `videos/{id}/transcribe`
-— CRUD de `analyses`/`competitors`/`subscriptions` chega junto das features que os usam.
+`competitors`, `subscriptions`. `videos` já é populada pela ingestão (Módulo 3) e, a partir do
+Módulo 4, também carrega os campos `transcript_*` (transcrição de áudio) e `metrics_synced_at`.
+`analyses` é populada a partir do Módulo 5 (viral score, resumo, insights de IA) quando um usuário
+dispara `POST /videos/{id}/analyze`. Endpoints construídos cobrem só o que o dashboard consome hoje:
+`me`, `searches`, `favorites`, `dashboard/stats`, `videos/{id}/transcribe`, `videos/{id}/analyze` —
+CRUD de `competitors`/`subscriptions` chega junto das features que os usam.
 
 ### Autenticação
 
@@ -80,6 +81,34 @@ combina com o resto do backend — SQLAlchemy asyncio, httpx, FastAPI). Definiç
 criado na primeira chamada) e usa um `_job_id` determinístico por vídeo (`transcribe-video-{id}`)
 para aproveitar a dedupe nativa do arq e evitar enfileirar o mesmo vídeo duas vezes.
 
+## Análise por IA (Módulo 5)
+
+Também roda no worker do Módulo 4 (`app/workers/worker.py`), como um segundo job registrado em
+`WorkerSettings.functions`:
+
+- `app/workers/tasks/analysis.py` — `analyze_video_job`: analisa um vídeo via `AnalysisService` +
+  `AnalysisClientProtocol` (`app/integrations/interfaces/analysis_client.py`). A implementação real,
+  `ClaudeAnalysisClient` (`app/integrations/claude_analysis_client.py`), usa o **SDK oficial
+  `anthropic`** (`AsyncAnthropic`) — diferente de `WhisperTranscriptionClient`/`YouTubeClient`
+  (`httpx` puro), chamadas à própria API da Anthropic usam o SDK oficial. Modelo: `claude-haiku-4-5`
+  (mais barato da família Claude — decisão deliberada de custo; não suporta `thinking` adaptativo
+  nem `output_config.effort`, por isso nenhum dos dois é passado na chamada). Saída estruturada via
+  `output_config.format` (`json_schema`), sem prefill de assistant.
+  - **Disparo**: manual, por usuário, via `POST /api/v1/videos/{id}/analyze` — diferente da
+    transcrição (automática), é uma ação explícita que sempre cria uma **nova linha** em `analyses`
+    (sem cache/dedupe cross-user — N usuários analisando o mesmo vídeo geram N chamadas pagas à
+    API). Bate com o contador "Análises geradas" do dashboard (`analyses_count` por usuário).
+  - **Não bloqueia em transcrição**: se `video.transcript_status != completed` no momento em que o
+    job roda, a análise segue só com os metadados do vídeo (título, descrição, canal, métricas,
+    duração) — sem esperar nem re-enfileirar.
+  - **Transcrição truncada**: `TRANSCRIPT_MAX_CHARS` (20.000 caracteres) em
+    `claude_analysis_client.py` — vídeos muito longos enviam só o início da transcrição ao modelo.
+  - Precisa de `ANTHROPIC_API_KEY`; sem ela, o job falha e marca `analyses.status = failed` com o
+    erro em `analyses.error`.
+- `ArqJobQueue.enqueue_analysis` usa `_job_id=f"analyze-{analysis_id}"` — dedupe por **análise**,
+  não por vídeo (diferente de `enqueue_transcription`), já que cada disparo cria uma linha nova e
+  todas devem rodar, mesmo para o mesmo vídeo.
+
 ## Rodando localmente
 
 ```bash
@@ -96,9 +125,10 @@ poetry run alembic upgrade head
 poetry run alembic revision --autogenerate -m "descrição"   # para novas mudanças de schema
 ```
 
-As migrations `0001_create_domain_tables` e `0002_add_video_transcript_fields` foram escritas à
-mão e já foram validadas rodando de verdade contra um Postgres real (upgrade e downgrade). A partir
-delas, use `--autogenerate` normalmente.
+As migrations `0001_create_domain_tables`, `0002_add_video_transcript_fields` e
+`0003_add_analysis_error_and_completed_at` foram escritas à mão e já foram validadas rodando de
+verdade contra um Postgres real (upgrade e downgrade). A partir delas, use `--autogenerate`
+normalmente.
 
 ## Testes
 
@@ -111,7 +141,9 @@ verificação de JWT sem depender de credenciais reais do Clerk. Os testes de ro
 (`test_searches.py`, `test_favorites.py`, `test_dashboard.py`, `test_videos.py`) usam
 `app.dependency_overrides` para trocar repositórios/integrações por mocks — não tocam banco nem
 Redis de verdade. Os jobs do worker (`test_worker_jobs.py`) são chamados diretamente com um `ctx`
-fake e `video_repository_scope` trocado via `monkeypatch` (jobs arq não passam por
-`app.dependency_overrides`, que é específico do FastAPI). `test_whisper_transcription_client.py`
-mocka `yt_dlp` e usa `respx` para a chamada à API Whisper, sem baixar áudio nem chamar a OpenAI de
-verdade.
+fake e `video_repository_scope`/`analysis_repository_scope` trocados via `monkeypatch` (jobs arq
+não passam por `app.dependency_overrides`, que é específico do FastAPI).
+`test_whisper_transcription_client.py` mocka `yt_dlp` e usa `respx` para a chamada à API Whisper,
+sem baixar áudio nem chamar a OpenAI de verdade. `test_claude_analysis_client.py` usa `respx` para
+mockar `POST /v1/messages` (o SDK `anthropic` usa `httpx` por baixo, então `respx` intercepta
+normalmente) — sem chamar a Anthropic de verdade.
