@@ -39,3 +39,15 @@ class ArqJobQueue:
             raise JobQueueError(
                 f"Falha ao enfileirar transcrição do vídeo {video_id}: {exc}"
             ) from exc
+
+    async def enqueue_analysis(self, analysis_id: uuid.UUID) -> None:
+        # Dedupe por analysis_id, não por video_id: cada trigger_analysis cria uma linha nova em
+        # `analyses` (sem cache/dedupe cross-user), então múltiplas análises do mesmo vídeo por
+        # usuários diferentes devem todas rodar — um _job_id por vídeo bloquearia indevidamente.
+        pool = await self._get_pool()
+        try:
+            await pool.enqueue_job(
+                "analyze_video_job", str(analysis_id), _job_id=f"analyze-{analysis_id}"
+            )
+        except Exception as exc:
+            raise JobQueueError(f"Falha ao enfileirar análise {analysis_id}: {exc}") from exc

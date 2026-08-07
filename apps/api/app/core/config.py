@@ -22,6 +22,7 @@ class Settings(BaseSettings):
 
     youtube_api_key: str = ""
     openai_api_key: str = ""
+    anthropic_api_key: str = ""
 
     @property
     def cors_origins(self) -> list[str]:

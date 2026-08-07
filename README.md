@@ -4,12 +4,12 @@ Plataforma SaaS que usa IA para identificar vídeos e canais do YouTube com alto
 viralização — tendências emergentes, por que um vídeo viralizou, títulos e hooks vencedores, e
 oportunidades de conteúdo para Shorts.
 
-> Status: **Módulo 4 — Workers assíncronos (Redis via `arq`).** Módulos 1–3 concluídos (estrutura
-> inicial, auth, banco, dashboard, ingestão via YouTube Data API). Toda busca agora dispara,
-> automaticamente e em segundo plano, a transcrição do áudio dos vídeos novos (Whisper), e um cron
-> horário mantém as métricas dos vídeos favoritados atualizadas. A _análise por IA_ (viral score,
-> insights, hooks) ainda não existe — chega no Módulo 5, e vai consumir a transcrição já produzida
-> aqui.
+> Status: **Módulo 5 — Camada de IA (Claude).** Módulos 1–4 concluídos (estrutura inicial, auth,
+> banco, dashboard, ingestão via YouTube Data API, transcrição via Whisper + coleta de métricas em
+> segundo plano). Agora o usuário pode disparar manualmente a análise por IA de um vídeo
+> (`POST /videos/{id}/analyze`), que usa o Claude (`claude-haiku-4-5`) para gerar viral score,
+> resumo, títulos vencedores, hooks e oportunidades de conteúdo — aproveitando a transcrição do
+> Módulo 4 quando disponível.
 
 ## Stack
 
@@ -21,7 +21,7 @@ oportunidades de conteúdo para Shorts.
 | Cache / Fila | Redis + [`arq`](https://arq-docs.helpmanual.io/) (fila de jobs assíncronos, Módulo 4)             |
 | Autenticação | Clerk                                                                                             |
 | Pagamento    | Stripe _(Módulo 6)_                                                                               |
-| IA           | Whisper (transcrição, Módulo 4) · Claude API, OpenAI API _(análise, Módulo 5)_                    |
+| IA           | Whisper — OpenAI API (transcrição, Módulo 4) · Claude API — `claude-haiku-4-5` (análise, Módulo 5) |
 | Deploy       | Vercel (web) · Railway (api) · Supabase (banco)                                                   |
 
 ## Arquitetura
@@ -73,7 +73,7 @@ poetry install
 poetry run alembic upgrade head   # cria as 7 tabelas no seu Postgres
 poetry run uvicorn app.main:app --reload
 
-# 2c. Worker (terceiro terminal) — transcrição (Whisper) + coleta de métricas
+# 2c. Worker (terceiro terminal) — transcrição (Whisper) + coleta de métricas + análise (Claude)
 cd apps/api
 poetry run arq app.workers.worker.WorkerSettings
 ```
@@ -82,7 +82,8 @@ poetry run arq app.workers.worker.WorkerSettings
 - Backend: http://localhost:8000/docs (Swagger) · http://localhost:8000/api/v1/health
 - Worker: precisa do Redis rodando (`docker-compose.yml` já sobe um). Sem `OPENAI_API_KEY`
   configurada, o job de transcrição roda mas falha (`transcript_status = failed`) — a busca em si
-  não é afetada.
+  não é afetada. Sem `ANTHROPIC_API_KEY`, o job de análise roda mas falha (`analyses.status =
+  failed`) — disparar `POST /videos/{id}/analyze` continua respondendo 202 normalmente.
 
 `docker-compose.yml` continua disponível para quem preferir Postgres/Redis locais em vez do
 Supabase direto — nesse caso aponte `DATABASE_URL` para o container (`localhost:5432`) em vez da
@@ -92,9 +93,9 @@ connection string do Supabase.
 
 - **Lint/format**: ESLint + Prettier (TS/JS) e Ruff (Python), unificados num único hook de
   pre-commit via Husky + lint-staged — configurado na raiz (`package.json`).
-- **Testes**: Pytest (`apps/api/tests`, 50 testes — Clerk JWT com par RSA gerado no teste, routers
-  com repositórios mockados, clientes YouTube/Whisper mockados via `respx`, jobs do worker chamados
-  diretamente com repositório fake). Vitest no frontend chega num módulo futuro.
+- **Testes**: Pytest (`apps/api/tests`, 81 testes — Clerk JWT com par RSA gerado no teste, routers
+  com repositórios mockados, clientes YouTube/Whisper/Claude mockados via `respx`, jobs do worker
+  chamados diretamente com repositório fake). Vitest no frontend chega num módulo futuro.
 - **Tipagem**: `strict` no TypeScript, proibido `any` (regra de ESLint `@typescript-eslint/no-explicit-any`).
 
 ```bash
@@ -109,8 +110,8 @@ Cada módulo abaixo é implementado e aprovado separadamente:
 2. ✅ Dashboard, Auth (Clerk) e domínio de dados
 3. ✅ Ingestão de dados — YouTube Data API, popula `videos`
 4. ✅ Workers assíncronos (Redis via `arq`) — transcrição Whisper, coleta periódica de métricas
-   (este módulo)
-5. Camada de IA (Claude / OpenAI) — `analyses`: viral score, insights, títulos, hooks
+5. ✅ Camada de IA (Claude) — `analyses`: viral score, resumo, títulos vencedores, hooks,
+   oportunidades de conteúdo. Disparo manual via `POST /videos/{id}/analyze` (este módulo)
 6. Billing (Stripe) — liga a tabela `subscriptions` a um fluxo de pagamento real
 7. CI/CD (GitHub Actions)
 
