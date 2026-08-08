@@ -10,10 +10,13 @@ from app.core.security.clerk import get_current_user_id
 from app.db.session import get_db_session
 from app.integrations.claude_analysis_client import ClaudeAnalysisClient
 from app.integrations.interfaces.analysis_client import AnalysisClientProtocol
+from app.integrations.interfaces.payment_client import PaymentClientProtocol
 from app.integrations.interfaces.transcription_client import TranscriptionClientProtocol
 from app.integrations.job_queue import ArqJobQueue
+from app.integrations.stripe_payment_client import StripePaymentClient
 from app.integrations.whisper_transcription_client import WhisperTranscriptionClient
 from app.integrations.youtube_client import YouTubeClient, YouTubeVideoData
+from app.models.enums import SubscriptionPlan
 from app.models.user import User
 from app.repositories.analysis_repository import SqlAlchemyAnalysisRepository
 from app.repositories.favorite_repository import SqlAlchemyFavoriteRepository
@@ -22,12 +25,15 @@ from app.repositories.interfaces.analysis_repository import AnalysisRepositoryPr
 from app.repositories.interfaces.favorite_repository import FavoriteRepositoryProtocol
 from app.repositories.interfaces.health_repository import HealthRepositoryProtocol
 from app.repositories.interfaces.search_repository import SearchRepositoryProtocol
+from app.repositories.interfaces.subscription_repository import SubscriptionRepositoryProtocol
 from app.repositories.interfaces.user_repository import UserRepositoryProtocol
 from app.repositories.interfaces.video_repository import VideoRepositoryProtocol
 from app.repositories.search_repository import SqlAlchemySearchRepository
+from app.repositories.subscription_repository import SqlAlchemySubscriptionRepository
 from app.repositories.user_repository import SqlAlchemyUserRepository
 from app.repositories.video_repository import SqlAlchemyVideoRepository
 from app.services.analysis_service import AnalysisService
+from app.services.billing_service import BillingService
 from app.services.dashboard_service import DashboardService
 from app.services.favorite_service import FavoriteService
 from app.services.health_service import HealthService
@@ -153,3 +159,27 @@ def get_analysis_service(
     job_queue: Annotated[ArqJobQueue, Depends(get_job_queue)],
 ) -> AnalysisService:
     return AnalysisService(analysis_repository, video_repository, analysis_client, job_queue)
+
+
+def get_subscription_repository(session: DbSessionDep) -> SubscriptionRepositoryProtocol:
+    return SqlAlchemySubscriptionRepository(session)
+
+
+def get_payment_client(settings: SettingsDep) -> PaymentClientProtocol:
+    return StripePaymentClient(api_key=settings.stripe_secret_key)
+
+
+def get_billing_service(
+    subscription_repository: Annotated[
+        SubscriptionRepositoryProtocol, Depends(get_subscription_repository)
+    ],
+    payment_client: Annotated[PaymentClientProtocol, Depends(get_payment_client)],
+    settings: SettingsDep,
+) -> BillingService:
+    price_id_by_plan = {
+        SubscriptionPlan.PRO: settings.stripe_price_id_pro,
+        SubscriptionPlan.BUSINESS: settings.stripe_price_id_business,
+    }
+    return BillingService(
+        subscription_repository, payment_client, price_id_by_plan, settings.frontend_url
+    )

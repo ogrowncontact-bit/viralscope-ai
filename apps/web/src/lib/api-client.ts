@@ -1,4 +1,4 @@
-import { env } from "@/lib/env";
+import { env } from '@/lib/env';
 
 export class ApiError extends Error {
   constructor(
@@ -6,7 +6,7 @@ export class ApiError extends Error {
     public readonly status: number,
   ) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
   }
 }
 
@@ -21,14 +21,18 @@ export async function apiFetch<TResponse>(
   const response = await fetch(`${env.NEXT_PUBLIC_API_URL}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
   });
 
   if (!response.ok) {
-    throw new ApiError(`Falha ao chamar ${path}: ${response.statusText}`, response.status);
+    const detail = await extractErrorDetail(response);
+    throw new ApiError(
+      detail ?? `Falha ao chamar ${path}: ${response.statusText}`,
+      response.status,
+    );
   }
 
   if (response.status === 204) {
@@ -36,4 +40,22 @@ export async function apiFetch<TResponse>(
   }
 
   return response.json() as Promise<TResponse>;
+}
+
+function hasStringDetail(body: unknown): body is { detail: string } {
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'detail' in body &&
+    typeof (body as Record<string, unknown>).detail === 'string'
+  );
+}
+
+async function extractErrorDetail(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json();
+    return hasStringDetail(body) ? body.detail : null;
+  } catch {
+    return null;
+  }
 }

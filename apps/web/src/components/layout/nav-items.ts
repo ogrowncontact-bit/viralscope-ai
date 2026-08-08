@@ -1,5 +1,5 @@
-import type { LucideIcon } from "lucide-react";
-import { CreditCard, LayoutDashboard, Users } from "lucide-react";
+import type { LucideIcon } from 'lucide-react';
+import { CreditCard, LayoutDashboard, Users } from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -9,7 +9,7 @@ export interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Competidores", href: "/dashboard/competitors", icon: Users, comingSoon: true },
-  { label: "Assinatura", href: "/dashboard/billing", icon: CreditCard, comingSoon: true },
+  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Competidores', href: '/dashboard/competitors', icon: Users, comingSoon: true },
+  { label: 'Assinatura', href: '/dashboard/billing', icon: CreditCard },
 ];
