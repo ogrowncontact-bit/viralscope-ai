@@ -194,7 +194,9 @@ As migrations `0001_create_domain_tables`, `0002_add_video_transcript_fields`,
 `0003_add_analysis_error_and_completed_at` e
 `0004_add_subscription_stripe_customer_id_index` foram escritas à mão e já foram validadas
 rodando de verdade contra um Postgres real (upgrade e downgrade). A partir delas, use
-`--autogenerate` normalmente.
+`--autogenerate` normalmente. Desde o Módulo 7, essa validação (upgrade → downgrade → upgrade
+da cadeia inteira) roda automaticamente em CI a cada push/PR (`.github/workflows/api.yml`, job
+`migrations`), contra um Postgres efêmero — não depende mais de rodar à mão a cada mudança.
 
 ## Testes
 

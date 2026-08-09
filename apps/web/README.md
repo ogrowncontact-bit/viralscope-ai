@@ -70,5 +70,8 @@ pnpm dev
 ```
 
 - `pnpm lint` — ESLint (inclui `@typescript-eslint/no-explicit-any` como erro)
-- `pnpm exec tsc --noEmit` — typecheck
+- `pnpm typecheck` — typecheck (`tsc --noEmit`)
 - `pnpm build` — build de produção
+
+Esses três comandos, mais `pnpm format:check` (Prettier), rodam automaticamente em CI
+(`.github/workflows/web.yml`) a cada push/PR para `main` — ver Módulo 7 no README raiz.

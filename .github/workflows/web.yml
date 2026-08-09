@@ -1,0 +1,59 @@
+name: web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .prettierrc.json
+      - .prettierignore
+      - .github/workflows/web.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - apps/web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .prettierrc.json
+      - .prettierignore
+      - .github/workflows/web.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Placeholders (não segredos) só para satisfazer validação de formato no build — o
+      # ClerkProvider envolve toda a app e não renderiza nada sem essas chaves, e o env.ts
+      # valida NEXT_PUBLIC_API_URL via zod. Nenhuma chamada de rede real acontece no build.
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ZmFrZS1rZXktZm9yLWJ1aWxkLWNoZWNrJA
+      CLERK_SECRET_KEY: sk_test_fake
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm format:check
+
+      - run: pnpm lint
+
+      - run: pnpm typecheck
+
+      - run: pnpm build
