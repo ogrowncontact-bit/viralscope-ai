@@ -12,7 +12,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir poetry==1.8.5
+RUN pip install --no-cache-dir poetry==2.3.3
 
 COPY pyproject.toml poetry.lock* ./
 RUN poetry install --no-root --only main
