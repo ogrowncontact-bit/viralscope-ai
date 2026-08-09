@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 
-import { ErrorState } from "@/components/states/error-state";
+import { ErrorState } from '@/components/states/error-state';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -26,14 +26,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[ErrorBoundary]", error, errorInfo);
+    console.error('[ErrorBoundary]', error, errorInfo);
   }
 
   render() {
     if (this.state.error) {
       return (
         <ErrorState
-          title={this.props.fallbackTitle ?? "Este widget falhou"}
+          title={this.props.fallbackTitle ?? 'Este widget falhou'}
           message={this.state.error.message}
           onRetry={() => this.setState({ error: null })}
         />

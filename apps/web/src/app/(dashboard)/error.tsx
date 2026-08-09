@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
-import { Button } from "@/components/ui/button";
-import { ErrorState } from "@/components/states/error-state";
+import { Button } from '@/components/ui/button';
+import { ErrorState } from '@/components/states/error-state';
 
 export default function DashboardError({
   error,
@@ -13,7 +13,7 @@ export default function DashboardError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[DashboardError]", error);
+    console.error('[DashboardError]', error);
   }, [error]);
 
   return (
@@ -21,7 +21,7 @@ export default function DashboardError({
       <div className="w-full max-w-md space-y-4">
         <ErrorState
           title="Não foi possível carregar o dashboard"
-          message={error.message || "Erro inesperado."}
+          message={error.message || 'Erro inesperado.'}
         />
         <Button variant="outline" className="w-full" onClick={reset}>
           Tentar novamente

@@ -1,7 +1,7 @@
-import { useAuth } from "@clerk/nextjs";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from '@clerk/nextjs';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { createSearch } from "@/features/searches/api/create-search";
+import { createSearch } from '@/features/searches/api/create-search';
 
 export function useCreateSearch() {
   const { getToken } = useAuth();
@@ -10,8 +10,8 @@ export function useCreateSearch() {
   return useMutation({
     mutationFn: async (query: string) => createSearch(await getToken(), query),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["searches", "recent"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "stats"] });
+      void queryClient.invalidateQueries({ queryKey: ['searches', 'recent'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'stats'] });
     },
   });
 }

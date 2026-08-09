@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { Menu, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { Menu, Sparkles } from 'lucide-react';
+import { useState } from 'react';
 
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { SidebarNav } from "@/components/layout/sidebar-nav";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { UserMenu } from "@/components/layout/user-menu";
+import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { SidebarNav } from '@/components/layout/sidebar-nav';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
+import { UserMenu } from '@/components/layout/user-menu';
 
 export function Topbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -16,9 +16,7 @@ export function Topbar() {
     <header className="bg-background/80 sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b px-4 backdrop-blur">
       <div className="flex items-center gap-2 md:hidden">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-          <SheetTrigger
-            render={<Button variant="ghost" size="icon" aria-label="Abrir menu" />}
-          >
+          <SheetTrigger render={<Button variant="ghost" size="icon" aria-label="Abrir menu" />}>
             <Menu className="size-5" />
           </SheetTrigger>
           <SheetContent side="left" className="w-64 p-0">

@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useHealth } from "@/features/health/api/use-health";
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useHealth } from '@/features/health/api/use-health';
 
 export function HealthStatusCard() {
   const { data, isPending, isError, error } = useHealth();
@@ -25,7 +25,7 @@ export function HealthStatusCard() {
         )}
 
         {isError && (
-          <div className="flex items-center gap-2 text-sm text-destructive">
+          <div className="text-destructive flex items-center gap-2 text-sm">
             <AlertTriangle className="size-4" />
             <span>Não foi possível conectar à API: {error.message}</span>
           </div>
@@ -36,7 +36,7 @@ export function HealthStatusCard() {
             <div className="flex items-center justify-between">
               <dt className="text-muted-foreground">API</dt>
               <dd>
-                <Badge variant={data.status === "healthy" ? "default" : "destructive"}>
+                <Badge variant={data.status === 'healthy' ? 'default' : 'destructive'}>
                   <CheckCircle2 className="size-3" />
                   {data.status}
                 </Badge>

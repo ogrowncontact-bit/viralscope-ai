@@ -95,9 +95,7 @@ class ClaudeAnalysisClient:
                 max_tokens=MAX_OUTPUT_TOKENS,
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": self._build_user_message(request)}],
-                output_config={
-                    "format": {"type": "json_schema", "schema": ANALYSIS_OUTPUT_SCHEMA}
-                },
+                output_config={"format": {"type": "json_schema", "schema": ANALYSIS_OUTPUT_SCHEMA}},
             )
         except anthropic.APIStatusError as exc:
             raise AnalysisError(

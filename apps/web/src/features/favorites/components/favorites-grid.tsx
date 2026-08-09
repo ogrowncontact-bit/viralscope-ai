@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { Heart } from "lucide-react";
+import { Heart } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/states/empty-state";
-import { ErrorState } from "@/components/states/error-state";
-import { useFavorites } from "@/features/favorites/api/use-favorites";
-import { FavoriteCard } from "@/features/favorites/components/favorite-card";
-import { FavoritesSkeleton } from "@/features/favorites/components/favorites-skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/states/empty-state';
+import { ErrorState } from '@/components/states/error-state';
+import { useFavorites } from '@/features/favorites/api/use-favorites';
+import { FavoriteCard } from '@/features/favorites/components/favorite-card';
+import { FavoritesSkeleton } from '@/features/favorites/components/favorites-skeleton';
 
 export function FavoritesGrid() {
   const { data, isPending, isError, error, refetch } = useFavorites();

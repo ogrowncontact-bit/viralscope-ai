@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { Heart, Video as VideoIcon } from "lucide-react";
+import { Heart, Video as VideoIcon } from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import type { FavoriteVideo } from "@/features/favorites/types";
-import { useRemoveFavorite } from "@/features/favorites/api/use-remove-favorite";
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import type { FavoriteVideo } from '@/features/favorites/types';
+import { useRemoveFavorite } from '@/features/favorites/api/use-remove-favorite';
 
 export function FavoriteCard({ favorite }: { favorite: FavoriteVideo }) {
   const removeFavorite = useRemoveFavorite();

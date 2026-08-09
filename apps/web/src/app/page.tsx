@@ -1,8 +1,8 @@
-import { Show } from "@clerk/nextjs";
-import Link from "next/link";
+import { Show } from '@clerk/nextjs';
+import Link from 'next/link';
 
-import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/layout/theme-toggle';
 
 export default function Home() {
   return (

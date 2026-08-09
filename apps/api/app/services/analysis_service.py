@@ -81,9 +81,8 @@ class AnalysisService:
 
         await self._analysis_repository.mark_processing(analysis_id)
 
-        transcript_available = (
-            video.transcript_status == TranscriptStatus.COMPLETED
-            and bool(video.transcript_text)
+        transcript_available = video.transcript_status == TranscriptStatus.COMPLETED and bool(
+            video.transcript_text
         )
         request = AnalysisRequest(
             title=video.title,

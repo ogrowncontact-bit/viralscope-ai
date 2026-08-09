@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 const envSchema = z.object({
   NEXT_PUBLIC_API_URL: z.url(),
@@ -9,9 +9,7 @@ const parsed = envSchema.safeParse({
 });
 
 if (!parsed.success) {
-  throw new Error(
-    `Variáveis de ambiente inválidas ou ausentes: ${parsed.error.message}`,
-  );
+  throw new Error(`Variáveis de ambiente inválidas ou ausentes: ${parsed.error.message}`);
 }
 
 export const env = parsed.data;

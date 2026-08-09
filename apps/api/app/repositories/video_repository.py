@@ -73,9 +73,7 @@ class SqlAlchemyVideoRepository:
 
     async def list_favorited_video_ids(self) -> list[str]:
         result = await self._session.execute(
-            select(Video.youtube_video_id)
-            .join(Favorite, Favorite.video_id == Video.id)
-            .distinct()
+            select(Video.youtube_video_id).join(Favorite, Favorite.video_id == Video.id).distinct()
         )
         return list(result.scalars().all())
 

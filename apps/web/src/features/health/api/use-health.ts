@@ -1,10 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { getHealth } from "@/features/health/api/get-health";
+import { getHealth } from '@/features/health/api/get-health';
 
 export function useHealth() {
   return useQuery({
-    queryKey: ["health"],
+    queryKey: ['health'],
     queryFn: getHealth,
   });
 }
