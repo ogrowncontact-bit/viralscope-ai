@@ -4,25 +4,25 @@ Plataforma SaaS que usa IA para identificar vídeos e canais do YouTube com alto
 viralização — tendências emergentes, por que um vídeo viralizou, títulos e hooks vencedores, e
 oportunidades de conteúdo para Shorts.
 
-> Status: **Módulo 5 — Camada de IA (Claude).** Módulos 1–4 concluídos (estrutura inicial, auth,
-> banco, dashboard, ingestão via YouTube Data API, transcrição via Whisper + coleta de métricas em
-> segundo plano). Agora o usuário pode disparar manualmente a análise por IA de um vídeo
-> (`POST /videos/{id}/analyze`), que usa o Claude (`claude-haiku-4-5`) para gerar viral score,
-> resumo, títulos vencedores, hooks e oportunidades de conteúdo — aproveitando a transcrição do
-> Módulo 4 quando disponível.
+> Status: **Módulo 6 — Billing (Stripe).** Módulos 1–5 concluídos (estrutura inicial, auth, banco,
+> dashboard, ingestão via YouTube Data API, transcrição via Whisper + coleta de métricas em
+> segundo plano, análise por IA via Claude). Agora o usuário tem uma tela de assinatura
+> (`/dashboard/billing`) com os planos Free/Pro/Business — preço de Pro/Business é buscado ao vivo
+> na Stripe, nunca hardcoded — e pode assinar (Checkout hospedado da Stripe) ou gerenciar a
+> assinatura (Billing Portal). Webhooks da Stripe mantêm `subscriptions` sincronizada.
 
 ## Stack
 
-| Camada       | Tecnologia                                                                                        |
-| ------------ | ------------------------------------------------------------------------------------------------- |
-| Frontend     | Next.js 15 (App Router), TypeScript, TailwindCSS, shadcn/ui, TanStack Query, React Hook Form, Zod |
-| Backend      | FastAPI, Python, SQLAlchemy, Alembic                                                              |
-| Banco        | Supabase PostgreSQL (real, já em uso — ver `apps/api/.env`)                                       |
-| Cache / Fila | Redis + [`arq`](https://arq-docs.helpmanual.io/) (fila de jobs assíncronos, Módulo 4)             |
-| Autenticação | Clerk                                                                                             |
-| Pagamento    | Stripe _(Módulo 6)_                                                                               |
+| Camada       | Tecnologia                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| Frontend     | Next.js 15 (App Router), TypeScript, TailwindCSS, shadcn/ui, TanStack Query, React Hook Form, Zod  |
+| Backend      | FastAPI, Python, SQLAlchemy, Alembic                                                               |
+| Banco        | Supabase PostgreSQL (real, já em uso — ver `apps/api/.env`)                                        |
+| Cache / Fila | Redis + [`arq`](https://arq-docs.helpmanual.io/) (fila de jobs assíncronos, Módulo 4)              |
+| Autenticação | Clerk                                                                                              |
+| Pagamento    | Stripe (Checkout + Billing Portal hospedados, webhooks) — Módulo 6                                 |
 | IA           | Whisper — OpenAI API (transcrição, Módulo 4) · Claude API — `claude-haiku-4-5` (análise, Módulo 5) |
-| Deploy       | Vercel (web) · Railway (api) · Supabase (banco)                                                   |
+| Deploy       | Vercel (web) · Railway (api) · Supabase (banco)                                                    |
 
 ## Arquitetura
 
@@ -83,7 +83,11 @@ poetry run arq app.workers.worker.WorkerSettings
 - Worker: precisa do Redis rodando (`docker-compose.yml` já sobe um). Sem `OPENAI_API_KEY`
   configurada, o job de transcrição roda mas falha (`transcript_status = failed`) — a busca em si
   não é afetada. Sem `ANTHROPIC_API_KEY`, o job de análise roda mas falha (`analyses.status =
-  failed`) — disparar `POST /videos/{id}/analyze` continua respondendo 202 normalmente.
+failed`) — disparar `POST /videos/{id}/analyze` continua respondendo 202 normalmente.
+- Billing: sem `STRIPE_SECRET_KEY`/`STRIPE_PRICE_ID_PRO`/`STRIPE_PRICE_ID_BUSINESS`, a tela
+  `/dashboard/billing` continua abrindo (mostra "Preço indisponível" nos planos pagos) e assinar/
+  gerenciar assinatura responde 400 tratado — nada quebra. Passo a passo de configuração da
+  Stripe (produtos, preços recorrentes, webhook) em `.env.example`.
 
 `docker-compose.yml` continua disponível para quem preferir Postgres/Redis locais em vez do
 Supabase direto — nesse caso aponte `DATABASE_URL` para o container (`localhost:5432`) em vez da
@@ -93,9 +97,11 @@ connection string do Supabase.
 
 - **Lint/format**: ESLint + Prettier (TS/JS) e Ruff (Python), unificados num único hook de
   pre-commit via Husky + lint-staged — configurado na raiz (`package.json`).
-- **Testes**: Pytest (`apps/api/tests`, 81 testes — Clerk JWT com par RSA gerado no teste, routers
-  com repositórios mockados, clientes YouTube/Whisper/Claude mockados via `respx`, jobs do worker
-  chamados diretamente com repositório fake). Vitest no frontend chega num módulo futuro.
+- **Testes**: Pytest (`apps/api/tests`, 120 testes — Clerk JWT com par RSA gerado no teste, routers
+  com repositórios mockados, clientes YouTube/Whisper/Claude/Stripe mockados via `respx`, jobs do
+  worker chamados diretamente com repositório fake, webhook da Stripe validado com assinatura HMAC
+  real). Vitest no frontend chega num módulo futuro — este módulo validou o frontend via
+  `eslint`/`tsc --noEmit`/`next build`.
 - **Tipagem**: `strict` no TypeScript, proibido `any` (regra de ESLint `@typescript-eslint/no-explicit-any`).
 
 ```bash
@@ -111,8 +117,8 @@ Cada módulo abaixo é implementado e aprovado separadamente:
 3. ✅ Ingestão de dados — YouTube Data API, popula `videos`
 4. ✅ Workers assíncronos (Redis via `arq`) — transcrição Whisper, coleta periódica de métricas
 5. ✅ Camada de IA (Claude) — `analyses`: viral score, resumo, títulos vencedores, hooks,
-   oportunidades de conteúdo. Disparo manual via `POST /videos/{id}/analyze` (este módulo)
-6. Billing (Stripe) — liga a tabela `subscriptions` a um fluxo de pagamento real
+   oportunidades de conteúdo. Disparo manual via `POST /videos/{id}/analyze`
+6. ✅ Billing (Stripe) — liga a tabela `subscriptions` a um fluxo de pagamento real (este módulo)
 7. CI/CD (GitHub Actions)
 
 ## Licença

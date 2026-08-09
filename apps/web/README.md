@@ -22,7 +22,8 @@ src/
 ├── features/
 │   ├── searches/           # busca + pesquisas recentes
 │   ├── favorites/          # favoritos
-│   └── stats/               # cards de estatísticas do dashboard
+│   ├── stats/               # cards de estatísticas do dashboard
+│   └── billing/              # assinatura — planos, checkout e portal da Stripe (Módulo 6)
 ├── lib/                     # api-client (fetch + Bearer token do Clerk), env (zod), utils
 └── middleware.ts            # clerkMiddleware() — contexto de auth para toda a app
 ```

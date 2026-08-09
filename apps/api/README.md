@@ -30,9 +30,10 @@ como referência.
 `competitors`, `subscriptions`. `videos` já é populada pela ingestão (Módulo 3) e, a partir do
 Módulo 4, também carrega os campos `transcript_*` (transcrição de áudio) e `metrics_synced_at`.
 `analyses` é populada a partir do Módulo 5 (viral score, resumo, insights de IA) quando um usuário
-dispara `POST /videos/{id}/analyze`. Endpoints construídos cobrem só o que o dashboard consome hoje:
-`me`, `searches`, `favorites`, `dashboard/stats`, `videos/{id}/transcribe`, `videos/{id}/analyze` —
-CRUD de `competitors`/`subscriptions` chega junto das features que os usam.
+dispara `POST /videos/{id}/analyze`. `subscriptions` é populada a partir do Módulo 6 (billing via
+Stripe) — ver seção própria abaixo. Endpoints construídos cobrem só o que o dashboard consome
+hoje: `me`, `searches`, `favorites`, `dashboard/stats`, `videos/{id}/transcribe`,
+`videos/{id}/analyze`, `billing/*` — CRUD de `competitors` chega junto da feature que o usa.
 
 ### Autenticação
 
@@ -109,6 +110,70 @@ Também roda no worker do Módulo 4 (`app/workers/worker.py`), como um segundo j
   não por vídeo (diferente de `enqueue_transcription`), já que cada disparo cria uma linha nova e
   todas devem rodar, mesmo para o mesmo vídeo.
 
+## Billing (Módulo 6)
+
+Liga a tabela `subscriptions` (existente desde o Módulo 2, até aqui vazia) a um fluxo de
+pagamento real via **SDK oficial `stripe`** (mesma razão do `anthropic` no Módulo 5: chamada à
+própria API do provedor de pagamento, não um serviço terceiro). Usa os métodos assíncronos
+nativos do SDK (`create_async`/`retrieve_async`, disponíveis desde a v7 do `stripe-python`), que
+usam `httpx` internamente (já é dependência do projeto) — dispensa `asyncio.to_thread` e mantém o
+mesmo padrão de teste com `respx` usado para `anthropic`/Whisper.
+
+- `app/integrations/interfaces/payment_client.py` + `app/integrations/stripe_payment_client.py` —
+  `StripePaymentClient`: cria Checkout Session (assinatura, modo `subscription`), Billing Portal
+  Session, busca o preço ao vivo de um Price ID (`get_price`) e busca uma assinatura completa
+  (`get_subscription`, usado pelo webhook — ver abaixo). **Gotcha da API da Stripe** encontrado
+  rodando contra o SDK de verdade: `current_period_end` não existe mais no nível raiz do objeto
+  `Subscription` nas versões atuais da API — só em cada `items.data[].price` (uma assinatura pode
+  ter múltiplos itens). `BillingService._resolve_plan_and_period_end` lê os dois do mesmo primeiro
+  item, assumindo (como o resto do domínio) uma assinatura com um único item/preço.
+- `app/repositories/subscription_repository.py` — `SqlAlchemySubscriptionRepository`:
+  `upsert_by_user` (ON CONFLICT em `user_id`, mesmo padrão de `upsert_from_clerk` no
+  `UserRepository`) usado no `checkout.session.completed`; `update_from_stripe`/`update_status`
+  buscam por `stripe_customer_id` (índice `ix_subscriptions_stripe_customer_id`, migration
+  `0004`) — os eventos de assinatura subsequentes da Stripe só trazem o `customer`, não o
+  `user_id` interno.
+- `app/services/billing_service.py` — `BillingService`:
+  - `get_subscription`: sem linha em `subscriptions` (usuário nunca assinou) é tratado como Free,
+    sem precisar popular a tabela na criação do usuário.
+  - `list_plans`: **preço de Pro/Business nunca é hardcoded** — busca ao vivo na Stripe via
+    `STRIPE_PRICE_ID_PRO`/`STRIPE_PRICE_ID_BUSINESS`, em paralelo (`asyncio.gather`); mudar o
+    valor no Dashboard da Stripe não exige deploy. Falha ao buscar (chave ausente/inválida, price
+    incorreto) degrada para `price_cents: null` em vez de derrubar a rota — mesmo espírito de
+    resiliência do resto do domínio quando uma integração externa está fora do ar.
+  - `create_checkout_session`/`create_portal_session`: redirecionamento para páginas hospedadas
+    da Stripe (`session.url`) — **sem Stripe Elements**, então o frontend não precisa de
+    `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`. Reaproveita `stripe_customer_id` já vinculado ao usuário
+    (se existir) em vez de deixar a Stripe criar um Customer novo a cada checkout. Bloqueia um
+    novo checkout (erro 400 tratado) se o usuário já tem uma assinatura paga em vigor (`active`/
+    `trialing`/`past_due`) — troca de plano deve passar pelo Billing Portal, não por um segundo
+    Checkout Session concorrente.
+  - `handle_webhook_event`: dispatch em `checkout.session.completed` (busca a assinatura completa
+    na Stripe via `get_subscription` e já grava plano/status/vigência corretos na hora — não
+    depende da ordem de entrega dos webhooks da Stripe, que não é garantida),
+    `customer.subscription.created`/`.updated` (resolve o plano a partir do Price ID do item da
+    assinatura), `customer.subscription.deleted` (volta para Free/Canceled) e
+    `invoice.payment_failed` (marca `past_due` sem tocar plano/vigência).
+- `app/api/v1/routers/billing.py` — `GET /billing/subscription`, `GET /billing/plans` (público,
+  sem dado de usuário), `POST /billing/checkout`, `POST /billing/portal`.
+- `app/api/v1/routers/webhooks/stripe.py` — mesmo padrão do webhook do Clerk: lê `request.body()`
+  bruto, verifica assinatura via `stripe.Webhook.construct_event` (não há abstração via
+  `PaymentClientProtocol` para isso — verificação de webhook está amarrada aos bytes/headers
+  crus da requisição, igual ao Clerk), 503 se `STRIPE_WEBHOOK_SECRET` não configurado, 401 em
+  assinatura inválida.
+
+Variáveis necessárias (`apps/api/.env`): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`,
+`STRIPE_PRICE_ID_PRO`, `STRIPE_PRICE_ID_BUSINESS`, `FRONTEND_URL` (usada para montar as URLs de
+retorno pós-checkout/portal). Sem `STRIPE_SECRET_KEY`, `list_plans`/`checkout`/`portal` respondem
+com preço indisponível / erro 400 tratado — nenhuma rota derruba a aplicação.
+
+**Limitação conhecida**: a checagem de "já tem assinatura paga em vigor" em
+`create_checkout_session` é check-then-act sem lock — dois cliques rápidos/duas abas antes da
+primeira assinatura ser gravada no banco podem, em tese, resultar em duas Checkout Sessions
+concorrentes. Aceito por ora dado o baixo custo/probabilidade num app early-stage; mitigação
+futura seria um lock (ex.: `SELECT ... FOR UPDATE`) em torno da checagem, ou reconciliar via
+webhook idempotente.
+
 ## Rodando localmente
 
 ```bash
@@ -125,10 +190,11 @@ poetry run alembic upgrade head
 poetry run alembic revision --autogenerate -m "descrição"   # para novas mudanças de schema
 ```
 
-As migrations `0001_create_domain_tables`, `0002_add_video_transcript_fields` e
-`0003_add_analysis_error_and_completed_at` foram escritas à mão e já foram validadas rodando de
-verdade contra um Postgres real (upgrade e downgrade). A partir delas, use `--autogenerate`
-normalmente.
+As migrations `0001_create_domain_tables`, `0002_add_video_transcript_fields`,
+`0003_add_analysis_error_and_completed_at` e
+`0004_add_subscription_stripe_customer_id_index` foram escritas à mão e já foram validadas
+rodando de verdade contra um Postgres real (upgrade e downgrade). A partir delas, use
+`--autogenerate` normalmente.
 
 ## Testes
 
@@ -146,4 +212,8 @@ não passam por `app.dependency_overrides`, que é específico do FastAPI).
 `test_whisper_transcription_client.py` mocka `yt_dlp` e usa `respx` para a chamada à API Whisper,
 sem baixar áudio nem chamar a OpenAI de verdade. `test_claude_analysis_client.py` usa `respx` para
 mockar `POST /v1/messages` (o SDK `anthropic` usa `httpx` por baixo, então `respx` intercepta
-normalmente) — sem chamar a Anthropic de verdade.
+normalmente) — sem chamar a Anthropic de verdade. `test_stripe_payment_client.py` mocka
+`api.stripe.com` da mesma forma (o SDK `stripe` também roteia por `httpx` nos métodos `*_async`).
+`test_stripe_webhook.py` monta uma assinatura HMAC válida manualmente (mesmo algoritmo do
+`stripe.Webhook.construct_event`) para testar o roteiro de verificação ponta a ponta sem mockar
+o SDK.

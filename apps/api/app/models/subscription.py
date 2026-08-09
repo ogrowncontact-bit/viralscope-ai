@@ -18,7 +18,7 @@ class Subscription(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True
     )
-    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     plan: Mapped[SubscriptionPlan] = mapped_column(
         Enum(

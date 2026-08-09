@@ -31,8 +31,8 @@
       "prettier --write"
     ],
     "apps/api/**/*.py": [
-      "bash -c 'cd apps/api && poetry run ruff check --fix' --",
-      "bash -c 'cd apps/api && poetry run ruff format' --"
+      "bash -c 'cd apps/api && poetry run ruff check --fix \"$@\"' --",
+      "bash -c 'cd apps/api && poetry run ruff format \"$@\"' --"
     ]
   }
 }
