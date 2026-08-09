@@ -1,23 +1,27 @@
-"use client";
+'use client';
 
-import { Heart, Search, Sparkles } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Heart, Search, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-import { Card, CardContent } from "@/components/ui/card";
-import { ErrorState } from "@/components/states/error-state";
-import { useDashboardStats } from "@/features/stats/api/use-dashboard-stats";
-import { StatsSkeleton } from "@/features/stats/components/stats-skeleton";
+import { Card, CardContent } from '@/components/ui/card';
+import { ErrorState } from '@/components/states/error-state';
+import { useDashboardStats } from '@/features/stats/api/use-dashboard-stats';
+import { StatsSkeleton } from '@/features/stats/components/stats-skeleton';
 
 interface StatDefinition {
   label: string;
   icon: LucideIcon;
-  value: (stats: { searches_count: number; favorites_count: number; analyses_count: number }) => number;
+  value: (stats: {
+    searches_count: number;
+    favorites_count: number;
+    analyses_count: number;
+  }) => number;
 }
 
 const STAT_DEFINITIONS: StatDefinition[] = [
-  { label: "Pesquisas realizadas", icon: Search, value: (s) => s.searches_count },
-  { label: "Vídeos favoritados", icon: Heart, value: (s) => s.favorites_count },
-  { label: "Análises geradas", icon: Sparkles, value: (s) => s.analyses_count },
+  { label: 'Pesquisas realizadas', icon: Search, value: (s) => s.searches_count },
+  { label: 'Vídeos favoritados', icon: Heart, value: (s) => s.favorites_count },
+  { label: 'Análises geradas', icon: Sparkles, value: (s) => s.analyses_count },
 ];
 
 export function StatsCards() {

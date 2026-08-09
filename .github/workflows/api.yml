@@ -1,0 +1,84 @@
+name: api
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/api/**
+      - .github/workflows/api.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - apps/api/**
+      - .github/workflows/api.yml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry==2.3.3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: poetry
+          cache-dependency-path: apps/api/poetry.lock
+
+      - run: poetry install --no-root
+
+      - run: poetry run ruff check .
+
+      - run: poetry run ruff format --check .
+
+      - run: poetry run pytest
+
+  migrations:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: viralscope
+          POSTGRES_PASSWORD: viralscope
+          POSTGRES_DB: viralscope
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U viralscope -d viralscope"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://viralscope:viralscope@localhost:5432/viralscope
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        run: pipx install poetry==2.3.3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: poetry
+          cache-dependency-path: apps/api/poetry.lock
+
+      - run: poetry install --no-root
+
+      - name: Validar migrations (upgrade -> downgrade -> upgrade)
+        run: |
+          poetry run alembic upgrade head
+          poetry run alembic downgrade base
+          poetry run alembic upgrade head

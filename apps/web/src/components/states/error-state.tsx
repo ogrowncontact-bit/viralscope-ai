@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from 'lucide-react';
 
 interface ErrorStateProps {
   title?: string;
@@ -6,7 +6,7 @@ interface ErrorStateProps {
   onRetry?: () => void;
 }
 
-export function ErrorState({ title = "Algo deu errado", message, onRetry }: ErrorStateProps) {
+export function ErrorState({ title = 'Algo deu errado', message, onRetry }: ErrorStateProps) {
   return (
     <div className="border-destructive/30 bg-destructive/5 flex flex-col items-center gap-2 rounded-lg border py-10 text-center">
       <AlertTriangle className="text-destructive size-5" />

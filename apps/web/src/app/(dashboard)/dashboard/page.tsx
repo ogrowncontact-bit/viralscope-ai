@@ -1,8 +1,8 @@
-import { ErrorBoundary } from "@/components/states/error-boundary";
-import { FavoritesGrid } from "@/features/favorites/components/favorites-grid";
-import { RecentSearchesList } from "@/features/searches/components/recent-searches-list";
-import { SearchBar } from "@/features/searches/components/search-bar";
-import { StatsCards } from "@/features/stats/components/stats-cards";
+import { ErrorBoundary } from '@/components/states/error-boundary';
+import { FavoritesGrid } from '@/features/favorites/components/favorites-grid';
+import { RecentSearchesList } from '@/features/searches/components/recent-searches-list';
+import { SearchBar } from '@/features/searches/components/search-bar';
+import { StatsCards } from '@/features/stats/components/stats-cards';
 
 export default function DashboardPage() {
   return (

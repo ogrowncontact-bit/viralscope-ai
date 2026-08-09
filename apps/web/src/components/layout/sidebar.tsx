@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import Link from 'next/link';
+import { Sparkles } from 'lucide-react';
 
-import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { SidebarNav } from '@/components/layout/sidebar-nav';
 
 export function Sidebar() {
   return (

@@ -40,9 +40,7 @@ async def test_enqueue_transcription_raises_job_queue_error_when_pool_creation_f
 async def test_enqueue_transcription_raises_job_queue_error_when_enqueue_fails(monkeypatch) -> None:
     fake_pool = AsyncMock()
     fake_pool.enqueue_job.side_effect = ConnectionError("boom")
-    monkeypatch.setattr(
-        "app.integrations.job_queue.create_pool", AsyncMock(return_value=fake_pool)
-    )
+    monkeypatch.setattr("app.integrations.job_queue.create_pool", AsyncMock(return_value=fake_pool))
 
     queue = ArqJobQueue(redis_url="redis://localhost:6379/0")
 

@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { History } from "lucide-react";
+import { History } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmptyState } from "@/components/states/empty-state";
-import { ErrorState } from "@/components/states/error-state";
-import { useRecentSearches } from "@/features/searches/api/use-recent-searches";
-import { RecentSearchesSkeleton } from "@/features/searches/components/recent-searches-skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmptyState } from '@/components/states/empty-state';
+import { ErrorState } from '@/components/states/error-state';
+import { useRecentSearches } from '@/features/searches/api/use-recent-searches';
+import { RecentSearchesSkeleton } from '@/features/searches/components/recent-searches-skeleton';
 
 export function RecentSearchesList() {
   const { data, isPending, isError, error, refetch } = useRecentSearches();
@@ -22,9 +22,7 @@ export function RecentSearchesList() {
       <CardContent>
         {isPending && <RecentSearchesSkeleton />}
 
-        {isError && (
-          <ErrorState message={error.message} onRetry={() => void refetch()} />
-        )}
+        {isError && <ErrorState message={error.message} onRetry={() => void refetch()} />}
 
         {data && data.length === 0 && (
           <EmptyState
@@ -40,7 +38,7 @@ export function RecentSearchesList() {
               <li key={search.id} className="flex items-center justify-between py-2 text-sm">
                 <span>{search.query}</span>
                 <span className="text-muted-foreground text-xs">
-                  {new Date(search.created_at).toLocaleString("pt-BR")}
+                  {new Date(search.created_at).toLocaleString('pt-BR')}
                 </span>
               </li>
             ))}

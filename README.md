@@ -4,12 +4,13 @@ Plataforma SaaS que usa IA para identificar vídeos e canais do YouTube com alto
 viralização — tendências emergentes, por que um vídeo viralizou, títulos e hooks vencedores, e
 oportunidades de conteúdo para Shorts.
 
-> Status: **Módulo 6 — Billing (Stripe).** Módulos 1–5 concluídos (estrutura inicial, auth, banco,
-> dashboard, ingestão via YouTube Data API, transcrição via Whisper + coleta de métricas em
-> segundo plano, análise por IA via Claude). Agora o usuário tem uma tela de assinatura
-> (`/dashboard/billing`) com os planos Free/Pro/Business — preço de Pro/Business é buscado ao vivo
-> na Stripe, nunca hardcoded — e pode assinar (Checkout hospedado da Stripe) ou gerenciar a
-> assinatura (Billing Portal). Webhooks da Stripe mantêm `subscriptions` sincronizada.
+> Status: **Módulo 7 — CI (GitHub Actions).** Módulos 1–6 concluídos (estrutura inicial, auth,
+> banco, dashboard, ingestão via YouTube Data API, transcrição via Whisper + coleta de métricas
+> em segundo plano, análise por IA via Claude, billing via Stripe). Agora todo push/PR para
+> `main` roda automaticamente lint, format-check, typecheck, testes (Pytest) e validação das
+> migrations do Alembic contra um Postgres real — sem precisar de nenhum secret configurado. CD
+> (deploy automático para Vercel/Railway) fica para um módulo futuro, quando essas contas
+> existirem.
 
 ## Stack
 
@@ -97,11 +98,17 @@ connection string do Supabase.
 
 - **Lint/format**: ESLint + Prettier (TS/JS) e Ruff (Python), unificados num único hook de
   pre-commit via Husky + lint-staged — configurado na raiz (`package.json`).
-- **Testes**: Pytest (`apps/api/tests`, 120 testes — Clerk JWT com par RSA gerado no teste, routers
+- **CI** (Módulo 7, GitHub Actions): `.github/workflows/api.yml` roda `ruff check`, `ruff format
+--check`, `pytest`, e um job separado `migrations` que valida a cadeia completa de migrations
+  do Alembic — upgrade → downgrade → upgrade — contra um Postgres real efêmero.
+  `.github/workflows/web.yml` roda `prettier --check`, `eslint`, `tsc --noEmit`, `next build`.
+  Ambos disparam em todo push/PR para `main`, filtrados por path (só rodam quando o app
+  correspondente muda), sem exigir nenhum secret configurado.
+- **Testes**: Pytest (`apps/api/tests`, 130 testes — Clerk JWT com par RSA gerado no teste, routers
   com repositórios mockados, clientes YouTube/Whisper/Claude/Stripe mockados via `respx`, jobs do
   worker chamados diretamente com repositório fake, webhook da Stripe validado com assinatura HMAC
-  real). Vitest no frontend chega num módulo futuro — este módulo validou o frontend via
-  `eslint`/`tsc --noEmit`/`next build`.
+  real). Vitest no frontend chega num módulo futuro — o frontend é validado via
+  `eslint`/`tsc --noEmit`/`next build` (também em CI).
 - **Tipagem**: `strict` no TypeScript, proibido `any` (regra de ESLint `@typescript-eslint/no-explicit-any`).
 
 ```bash
@@ -118,8 +125,10 @@ Cada módulo abaixo é implementado e aprovado separadamente:
 4. ✅ Workers assíncronos (Redis via `arq`) — transcrição Whisper, coleta periódica de métricas
 5. ✅ Camada de IA (Claude) — `analyses`: viral score, resumo, títulos vencedores, hooks,
    oportunidades de conteúdo. Disparo manual via `POST /videos/{id}/analyze`
-6. ✅ Billing (Stripe) — liga a tabela `subscriptions` a um fluxo de pagamento real (este módulo)
-7. CI/CD (GitHub Actions)
+6. ✅ Billing (Stripe) — liga a tabela `subscriptions` a um fluxo de pagamento real
+7. ✅ CI (GitHub Actions) — lint, format-check, typecheck, testes (Pytest) e validação de
+   migrations do Alembic contra Postgres real, em todo push/PR para `main` (este módulo). CD
+   (deploy automático) fica para um módulo futuro.
 
 ## Licença
 

@@ -1,4 +1,4 @@
-import { HealthStatusCard } from "@/features/health/components/health-status-card";
+import { HealthStatusCard } from '@/features/health/components/health-status-card';
 
 export default function StatusPage() {
   return (

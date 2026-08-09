@@ -1,4 +1,4 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware } from '@clerk/nextjs/server';
 
 // Estabelece o contexto de autenticação para toda a aplicação. A proteção de rota em si
 // é feita via `auth.protect()` dentro de cada layout/página protegida (padrão
@@ -6,5 +6,5 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 export default clerkMiddleware();
 
 export const config = {
-  matcher: ["/((?!_next|.*\\..*).*)", "/(api|trpc)(.*)"],
+  matcher: ['/((?!_next|.*\\..*).*)', '/(api|trpc)(.*)'],
 };
